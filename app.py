@@ -3,10 +3,9 @@ import joblib
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(page_title="Оқу нәтижесін болжау", layout="centered")
-st.title("1-Зерттеу сұрағы: 8-ші аптадағы тест балын болжау")
-st.write("**Зерттеу сұрағы:** Алғашқы төрт аптадағы оқу көрсеткіштері бойынша сегізінші аптадағы пәндік тест балын болжау[cite: 1].")
-st.info("Бұл модель Ridge регрессиясы арқылы 300 жасанды дерек негізінде оқытылған.")
+st.set_page_config(page_title="8-апта тест балын болжау", layout="centered")
+st.title("1-Зерттеу сұрағы: Сегізінші аптадағы тест балын болжау")
+st.write("**Педагогикалық мақсат:** Алғашқы 4 аптаның көрсеткіштері негізінде студенттің 8-аптадағы оқу нәтижесін алдын ала болжап, қолдау шараларын жоспарлау.")
 
 @st.cache_resource
 def load_model():
@@ -18,18 +17,24 @@ model = bundle["model"]
 features = bundle["features"]
 
 with st.form("prediction_form"):
-    st.subheader("Алғашқы 4 апта көрсеткіштерін енгізіңіз[cite: 1]:")
-    pretest_score = st.slider("Бастапқы тест балы (0-100)", 30, 100, 60)
-    attendance_4weeks = st.slider("Алғашқы 4 аптадағы сабаққа қатысу үлесі (%)[cite: 1]", 50, 100, 80)
-    submitted_4weeks = st.number_input("Алғашқы 4 аптада орындалған жұмыстар саны[cite: 1]", min_value=3, max_value=10, value=7, step=1)
-    late_4weeks = st.number_input("Оның ішінде кеш тапсырылған жұмыстар саны[cite: 1]", min_value=0, max_value=3, value=1, step=1)
+    st.subheader("1. Бастапқы деңгей көрсеткіші")
+    pretest_score = st.slider("Бастапқы (Pretest) тест балы (0-100)", 30, 100, 60)
     
-    submitted = st.form_submit_button("Болжам жасау")
+    st.subheader("2. Алғашқы 4 аптадағы жиынтық оқу динамикасы")
+    col_a, col_b = st.columns(2)
+    with col_a:
+        attendance_4weeks = st.slider("4 аптадағы орташа қатысу үлесі (%)", 50, 100, 85)
+        submitted_4weeks = st.number_input("4 аптада орындалған жұмыстар саны (барлығы 10)", min_value=3, max_value=10, value=8)
+    with col_b:
+        late_4weeks = st.number_input("Оның ішінде кеш тапсырылған тапсырмалар", min_value=0, max_value=5, value=1)
+    
+    submitted = st.form_submit_button("8-ші аптадағы тест балын болжау")
 
 if submitted:
     if late_4weeks > submitted_4weeks:
-        st.error("Қате: Кеш тапсырылған жұмыстар саны орындалған жұмыстардан артық болмауы тиіс!")
+        st.error("Қате: Кешіктірілген тапсырмалар саны барлық тапсырылған жұмыстардан аспауы тиіс!")
     else:
+        # Модельге енгізілетін деректер
         row = pd.DataFrame([{
             "pretest_score": pretest_score,
             "attendance_4weeks": attendance_4weeks,
@@ -37,15 +42,19 @@ if submitted:
             "late_4weeks": late_4weeks
         }])
         
+        # 8-ші аптаның болжамды балын есептеу
         prediction = float(model.predict(row[features])[0])
-        st.metric("Болжамды тест балы (8-ші апта)[cite: 1]", f"{prediction:.1f} / 100")
         
-        # Қосымша көрсеткіштер мен пайыздарды шығару
-        completion_pct = (submitted_4weeks / 10) * 100
-        late_pct = (late_4weeks / submitted_4weeks * 100) if submitted_4weeks > 0 else 0
+        st.markdown("---")
+        st.subheader("Болжам нәтижесі:")
+        st.metric("8-ші аптадағы болжамды пәндік тест балы", f"{prediction:.1f} / 100 балл")
         
-        col1, col2 = st.columns(2)
-        col1.metric("Тапсырмаларды орындау үлесі", f"{completion_pct:.0f}%")
-        col2.metric("Кеш тапсыру үлесі", f"{late_pct:.1f}%")
-        
-        st.caption("Бұл болжам тек оқу үдерісін жоспарлауға көмектеседі және түпкілікті баға болып саналмайды[cite: 1].")
+        # Педагогикалық кеңес/талдау
+        if prediction < 60:
+            st.warning("⚠️ **Ескерту:** Студенттің 8-ші аптадағы нәтижесі төмен болуы мүмкін. Қосымша кеңес беру (консультация) ұсынылады.")
+        elif prediction >= 85:
+            st.success("✅ **Өте жақсы:** Студенттің 4 апталық оқу қарқыны жоғары, оқу үдерісі сәтті өтуде[cite: 1].")
+        else:
+            st.info("ℹ️ **Қалыпты:** Студенттің оқу үлгерімі орташа деңгейде[cite: 1].")
+            
+        st.caption("Шектеу: Бұл модель баға қоюға негіз емес, тек педагогикалық қолдауды жоспарлауға арналған[cite: 1].")
